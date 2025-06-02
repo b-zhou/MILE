@@ -82,6 +82,11 @@ def inference_loop_batch(
     # Cyclic learning rate scheduler
     scheduler = config.scheduler
     schedule_states = [scheduler(i) for i in range(n_samples)]
+
+    # store schedule states in info
+    info['step_size'] = [float(state.step_size) for state in schedule_states]
+    info['explore'] = [bool(state.explore) for state in schedule_states]
+
     optimizer = optax.sgd(1.0) # TODO: select optimizer based on config
 
     sampler = config.kernel(grad_estimator=grad_estimator)
@@ -113,12 +118,12 @@ def inference_loop_batch(
         def explore_step(current):
             _, state, batch, step_size = current
             grads = grad_estimator(state.position, batch)
-            rescaled_grads = - 1. * step_size * grads
+            rescaled_grads = jax.tree.map(lambda x: -1. * step_size * x, grads)
             updates, new_opt_state = optimizer.update(
                 rescaled_grads, state.opt_state, state.position
             )
             new_position = optax.apply_updates(state.position, updates)
-            return SamplerState(position=new_position, opt_state=new_opt_state) # type: ignore (could be a bug with position here)
+            return SamplerState(position=new_position, opt_state=new_opt_state) # type: ignore
 
         new_state = jax.lax.cond(
             schedule_state.explore,
@@ -133,7 +138,9 @@ def inference_loop_batch(
         for batch in loader.iter(
             split="train",
             batch_size=batch_size,
+            n_devices=1  # will use replicate to handle multiple devices
         ):
+            batch = (batch['feature'], batch['label'])
             state = jax.pmap(one_step)(
                 jax.random.split(rng_key, n_devices),
                 state,
@@ -141,7 +148,8 @@ def inference_loop_batch(
                 replicate(schedule_states[step_count])
             )
 
-            if saving_path and (step_count % n_thinning == 0):
+            if saving_path and (step_count % n_thinning == 0) \
+                    and not schedule_states[step_count].explore:
                 for i, chain_id in enumerate(step_ids):
                     save_position(
                         position=jax.tree.map(

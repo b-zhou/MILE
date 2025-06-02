@@ -127,6 +127,7 @@ class SchedulerConfig(BaseConfig):
         return self.name.get_scheduler(
             n_steps=n_steps,
             step_size_init=step_size_init,
+            exploration_ratio=self.exploration_ratio,
             **kwargs
         )
 

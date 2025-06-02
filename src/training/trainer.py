@@ -164,6 +164,10 @@ class BDETrainer:
                     'Sampling will start from randomly initialized parameters.'
                 )
             )
+            # save the param tree
+            _, tree = jax.tree.flatten(self.init_module_params(n_device=self.n_devices))
+            train_utils.save_tree(self.exp_dir, tree)
+
         # Sampling Phase
         # breakpoint() # comes in handy for pretraining of e.g. embeddings
         logger.info('> Starting Sampling...')

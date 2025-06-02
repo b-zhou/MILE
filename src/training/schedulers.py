@@ -18,27 +18,31 @@ class Scheduler(BaseStrEnum):
             **kwargs
         ) -> Callable[[int], ScheduleState]:
         """Return a scheduler function."""
-        if self.value == self.CONSTANT:
-            return lambda step_count: ScheduleState(step_size=step_size_init, explore=False)
 
-        elif self.value == self.CYCLICAL:
-            n_cycles = kwargs.get('n_cycles', 4)
-            exploration_ratio = kwargs.get('exploration_ratio', 0.1)
+        n_cycles = kwargs.get('n_cycles', 1)
+        exploration_ratio = kwargs.get('exploration_ratio', 0.0)
+        cycle_length = n_steps // n_cycles
 
-            cycle_length = n_steps // n_cycles
+        def _explore(step_count: int) -> bool:
+            if exploration_ratio == 0.0:
+                return False
+            return (step_count % cycle_length) / cycle_length <= exploration_ratio
+            
+        if self.value == Scheduler.CONSTANT:
+            def _scheduler_fn(step_count: int) -> ScheduleState:
+                """Constant step size scheduler."""
+                return ScheduleState(
+                    step_size=step_size_init,
+                    explore=_explore(step_count)
+                )
+        elif self.value == Scheduler.CYCLICAL:
             # https://blackjax-devs.github.io/sampling-book/algorithms/cyclical_sgld.html#id2
-            def _scheduler_fn(step_count):
-                do_sample = False
-                if ((step_count % cycle_length)/cycle_length) >= exploration_ratio:
-                    do_sample = True
-
+            def _scheduler_fn(step_count: int) -> ScheduleState:
                 cos_out = jnp.cos(jnp.pi * (step_count % cycle_length) / cycle_length) + 1
                 step_size = 0.5 * cos_out * step_size_init
+                return ScheduleState(
+                    step_size=step_size,
+                    explore=_explore(step_count)
+                )
 
-                return ScheduleState(step_size=step_size, explore=do_sample)
-
-            return _scheduler_fn
-        
-        else:
-            raise NotImplementedError(f"Scheduler {self.value} is not implemented.")
-        
+        return _scheduler_fn

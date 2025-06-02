@@ -154,4 +154,4 @@ class ProbabilisticModel:
             x, y = batch
             return self.log_likelihood(params, x, y)
 
-        return grad_estimator(self.log_unnormalized_posterior, loglikelihood_fn, data_size)
+        return grad_estimator(self.log_prior, loglikelihood_fn, data_size)

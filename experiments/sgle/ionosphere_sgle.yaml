@@ -1,5 +1,5 @@
-saving_dir: 'results/additional_tasks/'
-experiment_name: 'ionosphere_classif'
+saving_dir: 'results/csgle/'
+experiment_name: 'ionosphere'
 data:
   path: 'data/ionosphere.data'
   source: 'local'
@@ -32,17 +32,19 @@ training:
     name: 'sgld'
     warmup_steps: 0
     n_chains: 4
-    n_samples: 100
+    n_samples: 4000
     batch_size: 32
-    step_size_init: 0.01
+    step_size_init: 0.001
     n_thinning: 1
     keep_warmup: false
     prior_config:
       name: 'StandardNormal'
       parameters: {}
     scheduler_config:
-      name: 'Constant'
-      exploration_ratio: 0.1
-      parameters: {}
+      name: 'Cyclical'
+      exploration_ratio: 0.8
+      parameters: {
+        n_cycles: 4
+      }
 rng: 4
 logging: true
