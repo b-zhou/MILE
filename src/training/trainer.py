@@ -28,6 +28,7 @@ from src.inference.metrics import (
 from src.inference.reporting import generate_html_report
 from src.training.probabilistic import ProbabilisticModel
 from src.training.sampling import inference_loop
+from src.training.sampling_batch import inference_loop_batch
 from src.types import ParamTree
 from src.utils import measure_time, pretty_string_dict
 
@@ -552,6 +553,9 @@ class BDETrainer:
         else:
             chains = []  # Warmstart disabled: we desire to start from random ParamTree.
 
+        if self.prob_model.minibatch:
+            grad_estimator = self.prob_model.get_grad_estimator(len(self.loader))
+
         for step in self.train_plan:
             logger.info(f'\t| Starting Sampling for chains {step}')
             if chains:  # Warmstart enabled
@@ -581,7 +585,16 @@ class BDETrainer:
                 )
 
             else:  # Mini-Batch Sampling
-                raise NotImplementedError('Mini-Batch Sampling not yet implemented.')
+                inference_loop_batch(
+                    grad_estimator=grad_estimator,
+                    config=self.config_sampler,
+                    rng_key=self.key,
+                    init_params=params,
+                    loader=self.loader,
+                    step_ids=step,
+                    saving_path=self.exp_dir / self.config_sampler._dir_name,
+                    saving_path_warmup=self._sampling_warmup_dir,
+                )
 
 
 def single_step_class(

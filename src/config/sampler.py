@@ -25,6 +25,7 @@ class Sampler(BaseStrEnum):
     NUTS = 'nuts'
     MCLMC = 'mclmc'
     HMC = 'hmc'
+    SGLD = 'sgld'
 
     def get_kernel(self):
         """Get sampling kernel."""

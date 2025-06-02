@@ -11,6 +11,9 @@ from src.config.data import Task
 from src.training.priors import Prior
 from src.types import ParamTree
 
+from blackjax.sgmcmc import grad_estimator
+from typing import Tuple, Callable
+
 logger = logging.getLogger(__name__)
 
 
@@ -136,3 +139,19 @@ class ProbabilisticModel:
             self.log_prior(position)
             + self.log_likelihood(position, x, y, **kwargs) * self.n_batches
         )
+
+    def get_grad_estimator(self, data_size: int) -> Callable:
+        """Get gradient estimator for the model.
+
+        Returns:
+        --------
+        Callable
+            Gradient estimator function.
+        """
+
+        def loglikelihood_fn(params: ParamTree, batch: Tuple[jnp.ndarray, jnp.ndarray]):
+            """Log likelihood function for a batch of data."""
+            x, y = batch
+            return self.log_likelihood(params, x, y)
+
+        return grad_estimator(self.log_unnormalized_posterior, loglikelihood_fn, data_size)
