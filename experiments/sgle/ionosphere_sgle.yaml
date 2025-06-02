@@ -32,9 +32,9 @@ training:
     name: 'sgld'
     warmup_steps: 0
     n_chains: 4
-    n_samples: 4000
+    n_samples: 8000
     batch_size: 32
-    step_size_init: 0.001
+    step_size_init: 0.01
     n_thinning: 1
     keep_warmup: false
     prior_config:
@@ -42,9 +42,9 @@ training:
       parameters: {}
     scheduler_config:
       name: 'Cyclical'
-      exploration_ratio: 0.8
+      exploration_ratio: 0.9
       parameters: {
         n_cycles: 4
       }
-rng: 4
+rng: 5
 logging: true

@@ -140,6 +140,7 @@ def inference_loop_batch(
             batch_size=batch_size,
             n_devices=1  # will use replicate to handle multiple devices
         ):
+            rng_key, _ = jax.random.split(rng_key)
             batch = (batch['feature'], batch['label'])
             state = jax.pmap(one_step)(
                 jax.random.split(rng_key, n_devices),
@@ -149,7 +150,7 @@ def inference_loop_batch(
             )
 
             if saving_path and (step_count % n_thinning == 0) \
-                    and not schedule_states[step_count].explore:
+                    and (schedule_states[step_count].explore is not True):
                 for i, chain_id in enumerate(step_ids):
                     save_position(
                         position=jax.tree.map(
