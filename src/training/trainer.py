@@ -64,6 +64,9 @@ class BDETrainer:
         self.metrics_warmstart = MetricsStore.empty()
         self._completed = False
 
+        # batch size for SGLD sampling
+        self.batch_size = config.training.sampler.batch_size or len(self.loader.data_train)
+
         # Setup directory
         logger.info('> Setting up directories...')
         _ = config.setup_dir()
@@ -293,7 +296,7 @@ class BDETrainer:
     @property
     def n_batches(self):
         """Return the number of batches."""
-        return 1
+        return (len(self.loader.data_train) // self.batch_size) or 1
 
     @property
     def optimizer(self):

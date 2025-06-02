@@ -10,6 +10,7 @@ from typing import (
 import jax
 import jax.numpy as jnp
 from blackjax.base import SamplingAlgorithm
+import optax
 
 ParamTree: typing.TypeAlias = dict[str, typing.Union[jax.Array, 'ParamTree']]
 FileTree: typing.TypeAlias = dict[str, typing.Union[Path, 'FileTree']]
@@ -28,8 +29,19 @@ class State(NamedTuple):
 
     position: ParamTree
 
-# Scheduler
-class SchedulerState(NamedTuple):
+# cSGLD stuff
+class SamplerState(NamedTuple):
+    """Sampler state for cSGLD.
+
+    Notes
+    -----
+    - TODO
+    """
+
+    position: ParamTree
+    opt_state: optax.OptState
+
+class ScheduleState(NamedTuple):
     """Scheduler state for cSGLD.
 
     Notes
@@ -37,15 +49,15 @@ class SchedulerState(NamedTuple):
     - TODO
     """
 
-    lr: float
-    explore: bool
+    step_size: float | jax.Array
+    explore: bool | jax.Array = False
 
 class Scheduler(Protocol):
     """Protocol for Scheduler function.
 
     Signature:
     ---------
-    `(step_count) -> SchedulerState`
+    `(step_count) -> ScheduleState
 
     Notes
     -----
@@ -55,7 +67,7 @@ class Scheduler(Protocol):
 
     def __call__(
         self, step_count: int
-    ) -> SchedulerState:
+    ) -> ScheduleState:
         """Scheduler function for warmup."""
         ...
 

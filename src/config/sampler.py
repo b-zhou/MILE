@@ -5,6 +5,7 @@ from typing import Any
 
 from src.config.base import BaseConfig, BaseStrEnum
 from src.training.priors import PriorDist
+from src.training.schedulers import Scheduler
 
 
 class Sampler(BaseStrEnum):
@@ -96,6 +97,41 @@ class PriorConfig(BaseConfig):
 
 
 @dataclass(frozen=True)
+class SchedulerConfig(BaseConfig):
+    """Scheduler Configuration for the step size."""
+
+    name: Scheduler = field(
+        default=Scheduler.CONSTANT,
+        metadata={
+            'description': 'Scheduler to use for the step size.',
+            'searchable': True,
+        },
+    )
+    exploration_ratio: float = field(
+        default=0.1,
+        metadata={
+            'description': 'Exploration ratio for the scheduler.',
+            'searchable': True,
+        },
+    )
+    parameters: dict[str, Any] = field(
+        default_factory=dict,
+        metadata={
+            'description': 'Parameters for the scheduler.',
+            'searchable': True,
+        },
+    )
+
+    def get_scheduler(self, n_steps, step_size_init, **kwargs):
+        """Get the scheduler function."""
+        return self.name.get_scheduler(
+            n_steps=n_steps,
+            step_size_init=step_size_init,
+            **kwargs
+        )
+
+
+@dataclass(frozen=True)
 class SamplerConfig(BaseConfig):
     """Sampler Configuration."""
 
@@ -182,6 +218,21 @@ class SamplerConfig(BaseConfig):
         default_factory=PriorConfig,
         metadata={'description': 'Prior configuration for the model.'},
     )
+    # cSGLD stuff
+    scheduler_config: SchedulerConfig = field(
+        default_factory=SchedulerConfig,
+        metadata={
+            'description': 'Scheduler to use for the step size.',
+            'searchable': True,
+        },
+    )
+    batch_size: int = field(
+        default=128,
+        metadata={
+            'description': 'Batch size for (c)SGLD sampling.',
+            'searchable': True,
+        },
+    )
 
     def __post_init__(self):
         """Post Initialization for the Sampler Configuration."""
@@ -191,6 +242,15 @@ class SamplerConfig(BaseConfig):
     def prior(self):
         """Get the prior."""
         return self.prior_config.get_prior()
+    
+    @property
+    def scheduler(self):
+        """Get the scheduler function."""
+        return self.scheduler_config.get_scheduler(
+            n_steps=self.n_samples,
+            step_size_init=self.step_size_init,
+            **self.scheduler_config.parameters
+        )
 
     @property
     def kernel(self):
