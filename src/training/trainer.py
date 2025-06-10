@@ -14,6 +14,7 @@ import src.inference.metrics as sandbox_metrics
 import src.training.utils as train_utils
 from src.config.core import Config
 from src.config.data import DatasetType, Task
+from src.config.sampler import Sampler
 from src.dataset import (
     ImageLoader,
     TabularLoader,
@@ -115,11 +116,12 @@ class BDETrainer:
 
         # Setup Probabilistic Model
         logger.info('> Setting up Probabilistic Model...')
+        n_batches = self.n_batches if self.config.training.sampler.name == Sampler.SGLD else 1
         self.prob_model = ProbabilisticModel(
             module=self.module,
             params=self.init_module_params(n_device=1),
             prior=config.training.prior,
-            n_batches=self.n_batches,
+            n_batches=n_batches,
             task=config.data.task,
         )
 
