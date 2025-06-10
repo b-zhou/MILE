@@ -29,11 +29,14 @@ class Scheduler(BaseStrEnum):
             return (step_count % cycle_length) / cycle_length <= exploration_ratio
             
         if self.value == Scheduler.CONSTANT:
+            step_size_sampling = kwargs.get('step_size_sampling', step_size_init)
             def _scheduler_fn(step_count: int) -> ScheduleState:
                 """Constant step size scheduler."""
+                explore = _explore(step_count)
+                step_size = step_size_init if explore else step_size_sampling
                 return ScheduleState(
-                    step_size=step_size_init,
-                    explore=_explore(step_count)
+                    step_size=step_size,
+                    explore=explore
                 )
         elif self.value == Scheduler.CYCLICAL:
             # https://blackjax-devs.github.io/sampling-book/algorithms/cyclical_sgld.html#id2

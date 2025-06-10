@@ -1,4 +1,4 @@
-saving_dir: 'results/csgle/'
+saving_dir: 'results/csgle2/'
 experiment_name: 'ionosphere'
 data:
   path: 'data/ionosphere.data'
@@ -32,9 +32,9 @@ training:
     name: 'sgld'
     warmup_steps: 0
     n_chains: 4
-    n_samples: 8000
+    n_samples: 10000
     batch_size: 32
-    step_size_init: 0.01
+    step_size_init: 0.02
     n_thinning: 1
     keep_warmup: false
     prior_config:
@@ -46,5 +46,5 @@ training:
       parameters: {
         n_cycles: 4
       }
-rng: 5
+rng: 4
 logging: true

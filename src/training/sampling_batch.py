@@ -81,11 +81,11 @@ def inference_loop_batch(
 
     # Cyclic learning rate scheduler
     scheduler = config.scheduler
-    schedule_states = [scheduler(i) for i in range(n_samples)]
+    # schedule_states = [scheduler(i) for i in range(n_samples)]
 
     # store schedule states in info
-    info['step_size'] = [float(state.step_size) for state in schedule_states]
-    info['explore'] = [bool(state.explore) for state in schedule_states]
+    # info['step_size'] = [float(state.step_size) for state in schedule_states]
+    # info['explore'] = [bool(state.explore) for state in schedule_states]
 
     optimizer = optax.sgd(1.0) # TODO: select optimizer based on config
 
@@ -129,43 +129,46 @@ def inference_loop_batch(
             schedule_state.explore,
             explore_step,
             sample_step,
-            (rng_key, state, batch, schedule_state.step_size)
+            (rng_key, state, batch, schedule_state.step_size) # = current
         )
 
         return new_state
     
-    for step_count in tqdm(range(n_samples)):
-        for batch in loader.iter(
-            split="train",
-            batch_size=batch_size,
-            n_devices=1  # will use replicate to handle multiple devices
-        ):
-            rng_key, _ = jax.random.split(rng_key)
-            batch = (batch['feature'], batch['label'])
-            state = jax.pmap(one_step)(
-                jax.random.split(rng_key, n_devices),
-                state,
-                replicate(batch),
-                replicate(schedule_states[step_count])
-            )
+    # TODO: scan
+    with tqdm(total=n_samples, desc="Sampling") as progress_bar:
+        step_count = 0
+        while step_count < n_samples:
+            for batch in loader.iter(
+                split="train",
+                batch_size=batch_size,
+                n_devices=1  # will use replicate to handle multiple devices
+            ):
+                batch = (batch['feature'], batch['label'])
+                schedule_state = scheduler(step_count)
+                rng_key, _ = jax.random.split(rng_key)
+                state = jax.pmap(one_step)(
+                    jax.random.split(rng_key, n_devices),
+                    state,
+                    replicate(batch),
+                    replicate(schedule_state)
+                )
 
-            if saving_path and (step_count % n_thinning == 0) \
-                    and (schedule_states[step_count].explore is not True):
-                for i, chain_id in enumerate(step_ids):
-                    save_position(
-                        position=jax.tree.map(
-                            lambda x: x[i], state.position
-                        ),
-                        base=saving_path,
-                        idx=chain_id,
-                        n=step_count,
-                    )
-            # X, y = batch
-            # pred = jax.pmap(model.apply)({'params': state.params}, X)[..., 0]
-            # loss = jax.pmap(optax.l2_loss)(pred, y)
-            # loss = jnp.mean(loss)
-            # print(loss)
-            # l2_losses.append(loss)
+                if saving_path and (step_count % n_thinning == 0) \
+                        and (schedule_state.explore is not True):
+                    for i, chain_id in enumerate(step_ids):
+                        save_position(
+                            position=jax.tree.map(
+                                lambda x: x[i], state.position
+                            ),
+                            base=saving_path,
+                            idx=chain_id,
+                            n=step_count,
+                        )
+
+                step_count += 1
+                progress_bar.update(1)
+
+            loader.shuffle()
 
     jax.block_until_ready(state)
     logger.info(f"> {config.name.value} Sampling completed successfully.")
