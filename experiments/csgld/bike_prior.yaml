@@ -1,5 +1,5 @@
-saving_dir: 'results/bikesharing0/'
-experiment_name: 'bike_de'
+saving_dir: 'results/bikesharing/'
+experiment_name: 'bike_adam'
 data:
   path: 'data/bikesharing.data'
   source: 'local'
@@ -20,30 +20,35 @@ model:
   use_bias: true
 training:
   warmstart:
-    include: true
+    include: false
     optimizer_config:
       name: 'sgd'
-      parameters: {'learning_rate': 0.001}
+      parameters: {'learning_rate': 0.01}
     warmstart_exp_dir: null
     max_epochs: 500
     batch_size: 32
     patience: 20
   sampler:
-    name: 'mclmc'
-    warmup_steps: 1000
+    name: 'sgld'
+    warmup_steps: 0
     n_chains: 2
-    n_samples: 100
-    use_warmup_as_init: true
-    diagonal_preconditioning: false
-    num_effective_samples: 100
-    desired_energy_var_start: 0.5
-    desired_energy_var_end: 0.1
-    trust_in_estimate: 1.5
-    step_size_init: 0.001
-    n_thinning: 1
+    n_samples: 20000 # n_steps
+    batch_size: 512
+    step_size_init: 0.00001 # step_size_explore
+    n_thinning: 10
     keep_warmup: false
     prior_config:
       name: 'StandardNormal'
-      parameters: {}
-rng: 4
+      # parameters: {
+      #   scale: 10
+      # }
+    scheduler_config:
+      name: 'Constant'
+      exploration_ratio: 0.8
+      # n_samples_per_cycle: 1000
+      parameters: {
+        n_cycles: 1,
+        step_size_sampling: 0.000001
+      }
+rng: 5
 logging: true

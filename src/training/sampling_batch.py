@@ -63,7 +63,9 @@ def inference_loop_batch(
     Note:
         - Currently only supports the `sgld` sampler.
     """
-    info: JsonSerializableDict = {}  # Put any information you might need later for analysis
+    info: JsonSerializableDict = {
+        'scheduler_config': config.scheduler_config.to_dict(),
+    }  # Put any information you might need later for analysis
 
     n_devices = len(step_ids)
     n_warmup = config.warmup_steps
@@ -81,24 +83,25 @@ def inference_loop_batch(
 
     # Cyclic learning rate scheduler
     scheduler = config.scheduler
-    # schedule_states = [scheduler(i) for i in range(n_samples)]
+    schedule_states = [scheduler(i) for i in range(n_samples)]
 
     # store schedule states in info
-    # info['step_size'] = [float(state.step_size) for state in schedule_states]
-    # info['explore'] = [bool(state.explore) for state in schedule_states]
+    info.update({
+        'step_size': [float(state.step_size) for state in schedule_states],
+        'explore': [bool(state.explore) for state in schedule_states]
+    })
+    total_samples = jnp.sum(~jnp.array(info['explore']))
+    logger.info(f"Will produce {total_samples} samples.")
 
-    optimizer = optax.sgd(1.0) # TODO: select optimizer based on config
+    optimizer = optax.adam(1.0)
 
     sampler = config.kernel(grad_estimator=grad_estimator)
-    opt_state = optimizer.init(init_params)
+    opt_state = jax.pmap(optimizer.init)(init_params)
+    # jax.debug.print(
+    #     "\nopt state: {opt_state}\n",
+    #     opt_state=opt_state  # type: ignore
+    # )
     state = SamplerState(position=init_params, opt_state=opt_state)
-
-    logger.info(
-        f"Params: {jax.tree.map(lambda x: x.shape, init_params)}"
-    )
-    logger.info(
-        f"n_devices: {n_devices}"
-    )
 
     logger.info(
         f"> Running sampling with the following configuration:"
@@ -109,20 +112,46 @@ def inference_loop_batch(
     )
     logger.info(f"> Starting {config.name.value} Sampling...")
 
+    # def log_to_file(mean_grad, is_nan):
+    #     with open("nan.log", "a") as f:
+    #         f.write(f"Gradient: {mean_grad}\n")
+    #         f.write(f"Is NaN: {is_nan}\n")
+    #         f.write("=" * 20 + "\n")
+
+    def _get_nan(position, train=True):
+        """Check if the position contains NaN values."""
+        is_nan = jax.tree.map(lambda x: jnp.isnan(x).any(), position)
+        is_nan, _ = jax.tree.flatten(is_nan)
+        if any(is_nan):
+            logger.info(f"NaN detected. (train={train})")
+    #         # return True
+
     def one_step(rng_key, state, batch, schedule_state):
         def sample_step(current):
             rng_key, state, batch, step_size = current
             new_position = sampler.step(rng_key, state.position, batch, step_size) # type: ignore
+            # is_nan = jax.tree.map(
+            #     lambda x: jnp.isnan(x).any(), new_position
+            # )
+            jax.debug.callback(_get_nan, new_position, train=False)
             return SamplerState(position=new_position, opt_state=state.opt_state)
 
         def explore_step(current):
             _, state, batch, step_size = current
             grads = grad_estimator(state.position, batch)
-            rescaled_grads = jax.tree.map(lambda x: -1. * step_size * x, grads)
+            grads = jax.tree.map(lambda x: -1. * step_size * x, grads)
             updates, new_opt_state = optimizer.update(
-                rescaled_grads, state.opt_state, state.position
+                grads, state.opt_state, state.position
             )
+            # mean_grad = jax.tree.map(
+            #     lambda x: jnp.mean(x, axis=0), grads
+            # )
+            # is_nan = jax.tree.map(
+            #     lambda x: jnp.isnan(x).any(), state.position
+            # )
+            # jax.debug.callback(log_to_file, mean_grad, is_nan)
             new_position = optax.apply_updates(state.position, updates)
+            jax.debug.callback(_get_nan, new_position, train=True)
             return SamplerState(position=new_position, opt_state=new_opt_state) # type: ignore
 
         new_state = jax.lax.cond(
@@ -141,10 +170,11 @@ def inference_loop_batch(
             for batch in loader.iter(
                 split="train",
                 batch_size=batch_size,
-                n_devices=1  # will use replicate to handle multiple devices
+                n_devices=1  # will use `replicate` to handle multiple devices
             ):
                 batch = (batch['feature'], batch['label'])
-                schedule_state = scheduler(step_count)
+                # jax.debug.print("\nBatch shape: {batch_shape}\n", batch_shape=batch[0].shape)
+                schedule_state = schedule_states[step_count]
                 rng_key, _ = jax.random.split(rng_key)
                 state = jax.pmap(one_step)(
                     jax.random.split(rng_key, n_devices),
@@ -167,6 +197,9 @@ def inference_loop_batch(
 
                 step_count += 1
                 progress_bar.update(1)
+
+                if step_count == n_samples:
+                    break
 
             loader.shuffle()
 

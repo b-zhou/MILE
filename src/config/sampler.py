@@ -107,8 +107,18 @@ class SchedulerConfig(BaseConfig):
             'searchable': True,
         },
     )
-    exploration_ratio: float = field(
-        default=0.1,
+    n_samples_per_cycle: int | None = field(
+        default=None,
+        metadata={
+            'description': (
+                'Number of samples per cycle for cyclical schedulers. '
+                'If not None, the scheduler will use this value to determine the exploration ratio.'
+            ),
+            'searchable': True,
+        },
+    )
+    exploration_ratio: float | None = field(
+        default=0.0,
         metadata={
             'description': 'Exploration ratio for the scheduler.',
             'searchable': True,
@@ -127,6 +137,7 @@ class SchedulerConfig(BaseConfig):
         return self.name.get_scheduler(
             n_steps=n_steps,
             step_size_init=step_size_init,
+            n_samples_per_cycle=self.n_samples_per_cycle,
             exploration_ratio=self.exploration_ratio,
             **kwargs
         )

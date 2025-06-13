@@ -1,10 +1,10 @@
-saving_dir: 'results/bikesharing/'
-experiment_name: 'bike_adam'
+saving_dir: 'results/income/'
+experiment_name: 'income_2'
 data:
-  path: 'data/bikesharing.data'
+  path: 'data/income.data'
   source: 'local'
   data_type: 'tabular'
-  task: 'regr'
+  task: 'class'
   target_column: null
   target_len: 1
   features: null
@@ -22,8 +22,8 @@ training:
   warmstart:
     include: false
     optimizer_config:
-      name: 'sgd'
-      parameters: {'learning_rate': 0.01}
+      name: 'adamw'
+      parameters: {'learning_rate': 0.01, 'b1': 0.9, 'b2': 0.999, 'weight_decay': 0.001}
     warmstart_exp_dir: null
     max_epochs: 500
     batch_size: 32
@@ -31,21 +31,21 @@ training:
   sampler:
     name: 'sgld'
     warmup_steps: 0
-    n_chains: 2
-    n_samples: 80000 # n_steps
+    n_chains: 4
+    n_samples: 40000 # n_steps
     batch_size: 32
-    step_size_init: 0.00001 # step_size_explore
+    step_size_init: 0.0001 # step_size_explore
     n_thinning: 10
     keep_warmup: false
     prior_config:
       name: 'StandardNormal'
+      parameters: {}
     scheduler_config:
-      name: 'Constant'
-      exploration_ratio: 0.9
-      # n_samples_per_cycle: 1000
+      name: 'Cyclical'
+      # exploration_ratio: 0.98
+      n_samples_per_cycle: 1000
       parameters: {
-        n_cycles: 1,
-        step_size_sampling: 0.000001
+        n_cycles: 4
       }
-rng: 4
+rng: 2
 logging: true

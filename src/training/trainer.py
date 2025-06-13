@@ -65,9 +65,6 @@ class BDETrainer:
         self.metrics_warmstart = MetricsStore.empty()
         self._completed = False
 
-        # batch size for SGLD sampling
-        self.batch_size = config.training.sampler.batch_size or len(self.loader.data_train)
-
         # Setup directory
         logger.info('> Setting up directories...')
         _ = config.setup_dir()
@@ -116,7 +113,11 @@ class BDETrainer:
 
         # Setup Probabilistic Model
         logger.info('> Setting up Probabilistic Model...')
-        n_batches = self.n_batches if self.config.training.sampler.name == Sampler.SGLD else 1
+        if config.training.sampler.name == Sampler.SGLD:
+            batch_size = self.config.training.sampler.batch_size
+            n_batches = len(self.loader.data_train) // batch_size
+        else:
+            n_batches = 1
         self.prob_model = ProbabilisticModel(
             module=self.module,
             params=self.init_module_params(n_device=1),
@@ -563,7 +564,8 @@ class BDETrainer:
             chains = []  # Warmstart disabled: we desire to start from random ParamTree.
 
         if self.prob_model.minibatch:
-            grad_estimator = self.prob_model.get_grad_estimator(len(self.loader))
+            n_train = self.loader.train_x.shape[0]
+            grad_estimator = self.prob_model.get_grad_estimator(n_train)
 
         for step in self.train_plan:
             logger.info(f'\t| Starting Sampling for chains {step}')

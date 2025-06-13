@@ -149,9 +149,15 @@ class ProbabilisticModel:
             Gradient estimator function.
         """
 
-        def loglikelihood_fn(params: ParamTree, batch: Tuple[jnp.ndarray, jnp.ndarray]):
-            """Log likelihood function for a batch of data."""
-            x, y = batch
-            return self.log_likelihood(params, x, y)
+        # def loglikelihood_fn(params: ParamTree, batch: Tuple[jnp.ndarray, jnp.ndarray]):
+        #     """Log likelihood function for a batch of data."""
+        #     x, y = batch
+        #     return self.log_likelihood(params, x, y)
 
-        return grad_estimator(self.log_prior, loglikelihood_fn, data_size)
+        # return grad_estimator(self.log_prior, loglikelihood_fn, data_size)
+
+        def _logpost(params, batch):
+            """Log posterior function for a batch of data."""
+            x, y = batch
+            return self.log_unnormalized_posterior(params, x, y)
+        return jax.grad(_logpost)
