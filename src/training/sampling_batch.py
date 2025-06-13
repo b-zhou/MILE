@@ -93,8 +93,7 @@ def inference_loop_batch(
     total_samples = jnp.sum(~jnp.array(info['explore']))
     logger.info(f"Will produce {total_samples} samples.")
 
-    optimizer = optax.adam(1.0)
-
+    optimizer = optax.sgd(1.0)
     sampler = config.kernel(grad_estimator=grad_estimator)
     opt_state = jax.pmap(optimizer.init)(init_params)
     # jax.debug.print(
@@ -124,7 +123,6 @@ def inference_loop_batch(
         is_nan, _ = jax.tree.flatten(is_nan)
         if any(is_nan):
             logger.info(f"NaN detected. (train={train})")
-    #         # return True
 
     def one_step(rng_key, state, batch, schedule_state):
         def sample_step(current):
