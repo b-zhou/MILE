@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from src.config.base import BaseConfig, BaseStrEnum
+from src.config.warmstart import OptimizerConfig
 from src.training.priors import PriorDist
 from src.training.schedulers import Scheduler
 
@@ -245,6 +246,13 @@ class SamplerConfig(BaseConfig):
             'searchable': True,
         },
     )
+    # optimizer_config: OptimizerConfig = field(
+    #     default_factory=OptimizerConfig,
+    #     metadata={
+    #         'description': 'Optimizer configuration for (c)SGLD sampling.',
+    #         'searchable': True,
+    #     },
+    # )
 
     def __post_init__(self):
         """Post Initialization for the Sampler Configuration."""
@@ -263,6 +271,21 @@ class SamplerConfig(BaseConfig):
             step_size_init=self.step_size_init,
             **self.scheduler_config.parameters
         )
+    
+    # @property
+    # def optimizer(self):
+    #     """Get the optimizer for cSGLD exploration."""
+    #     try:
+    #         import optax  # type: ignore
+    #     except ModuleNotFoundError:
+    #         raise ModuleNotFoundError(
+    #             'For Warmstart Training, optimizers are required: '
+    #             'Please install "optax" module'
+    #         )
+    #     parameters = self.optimizer_config.parameters
+    #     parameters.update({'learning_rate': 1.0})  # will be overwritten by scheduler anyway
+    #     op = getattr(optax, self.optimizer_config.name.value)(**parameters)
+    #     return op
 
     @property
     def kernel(self):

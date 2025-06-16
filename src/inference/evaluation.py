@@ -417,6 +417,7 @@ def evaluate_bde(
     metrics_dict: dict = {},
     rng_key: PRNGKey = jax.random.PRNGKey(42),
     nominal_coverages: Optional[list] = None,
+    per_chain: bool = True,
     **kwargs,
 ) -> tuple[jnp.ndarray, dict]:
     """Evaluate the performance of a Bayesian Deep Ensemble model.
@@ -480,12 +481,13 @@ def evaluate_bde(
         print('_' * 50)
 
         # Per chain predictions
-        for i, lv in enumerate(preds_over_chains):
-            lppd = metrics.lppd(
-                lppd_pointwise=metrics.pointwise_lppd(lv, labels, task=task)
-            )
-            acc = jnp.mean(labels == mode(preds[i], axis=0).mode)  # Mode over (Samples)
-            print(f'Chain {i} | LPPD: {lppd:.3f}, ACC: {acc:.4f}')  # noqa: E231
+        if per_chain:
+            for i, lv in enumerate(preds_over_chains):
+                lppd = metrics.lppd(
+                    lppd_pointwise=metrics.pointwise_lppd(lv, labels, task=task)
+                )
+                acc = jnp.mean(labels == mode(preds[i], axis=0).mode)  # Mode over (Samples)
+                print(f'Chain {i} | LPPD: {lppd:.3f}, ACC: {acc:.4f}')  # noqa: E231
 
     # Regression
     elif task == Task.REGRESSION:
@@ -519,26 +521,27 @@ def evaluate_bde(
         print('_' * 50)
 
         # Per chain predictions
-        for i, lvs in enumerate(preds_over_chains):
-            lppd = metrics.lppd(
-                lppd_pointwise=metrics.pointwise_lppd(lvs, labels, task=task)
-            )
-            rmse = jnp.sqrt(
-                jnp.mean((labels - preds[i].mean(axis=0)) ** 2)  # Mean over Samples
-            )
-            print(f'Chain {i} | LPPD: {lppd:.3f}, RMSE: {rmse:.4f}')  # noqa: E231
+        if per_chain:
+            for i, lvs in enumerate(preds_over_chains):
+                lppd = metrics.lppd(
+                    lppd_pointwise=metrics.pointwise_lppd(lvs, labels, task=task)
+                )
+                rmse = jnp.sqrt(
+                    jnp.mean((labels - preds[i].mean(axis=0)) ** 2)  # Mean over Samples
+                )
+                print(f'Chain {i} | LPPD: {lppd:.3f}, RMSE: {rmse:.4f}')  # noqa: E231
 
-        if nominal_coverages is not None:
-            coverage = calculate_coverage(nominal_coverages, labels, preds[~nan_chains])
-            cal_error = calibration_error(
-                nominal_coverage=jnp.array(nominal_coverages),
-                observed_coverage=coverage,
-                weights=None,
-            )
-            print('_' * 50)
-            print(f'Calibration Error: {cal_error:.4f}')
-            metrics_dict['cal_error'] = cal_error
-            for i, cov in enumerate(nominal_coverages):
-                print(f'Coverage for {cov}: {coverage[i]:.4f}')
-                metrics_dict[f'coverage_{cov}'] = coverage[i]
+            if nominal_coverages is not None:
+                coverage = calculate_coverage(nominal_coverages, labels, preds[~nan_chains])
+                cal_error = calibration_error(
+                    nominal_coverage=jnp.array(nominal_coverages),
+                    observed_coverage=coverage,
+                    weights=None,
+                )
+                print('_' * 50)
+                print(f'Calibration Error: {cal_error:.4f}')
+                metrics_dict['cal_error'] = cal_error
+                for i, cov in enumerate(nominal_coverages):
+                    print(f'Coverage for {cov}: {coverage[i]:.4f}')
+                    metrics_dict[f'coverage_{cov}'] = coverage[i]
     return preds_over_chains, metrics_dict

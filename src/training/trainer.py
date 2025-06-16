@@ -597,8 +597,10 @@ class BDETrainer:
 
             else:  # Mini-Batch Sampling
                 inference_loop_batch(
+                    model=self.module,
+                    unnorm_log_posterior=self.prob_model.log_unnormalized_posterior,
                     grad_estimator=grad_estimator,
-                    config=self.config_sampler,
+                    config=self.config.training,
                     rng_key=self.key,
                     init_params=params,
                     loader=self.loader,
