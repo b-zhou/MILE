@@ -137,7 +137,7 @@ def inference_loop_batch(
     sampler = config.kernel(grad_estimator=grad_estimator)
 
     def _get_init_state(
-        apply_fn: PosteriorFunction,
+        apply_fn: Callable,
         params: ParamTree,
         tx: GradientTransformation,
     ) -> TrainState:
@@ -148,7 +148,11 @@ def inference_loop_batch(
             tx=tx
         )
 
-    state = jax.pmap(_get_init_state, static_broadcasted_argnums=(0,2))(
+    if n_devices > 1:
+        get_init_state = jax.pmap(_get_init_state, static_broadcasted_argnums=(0,2))
+    else:
+        get_init_state = _get_init_state
+    state = get_init_state(
         model.apply,
         init_params,
         optimizer
@@ -173,14 +177,14 @@ def inference_loop_batch(
         """Check if the position contains NaN values."""
         is_nan = jax.tree_map(lambda x: jnp.isnan(x).any(), position)
         is_nan, _ = jax.tree_flatten(is_nan)
-        if any(is_nan):
-            logger.info(f"NaN detected. (train={train}, step_size={step_size})")
+        # if any(is_nan):
+        #     logger.info(f"NaN detected. (train={train}, step_size={step_size})")
 
     def one_step(rng_key, state, batch, step_size, explore):
         def sample_step(current):
             rng_key, state, batch, step_size = current
             new_position = sampler.step(rng_key, state.params, batch, step_size) # type: ignore
-            jax.debug.callback(_get_nan, new_position, step_size, train=False)
+            # jax.debug.callback(_get_nan, new_position, step_size, train=False)
             return state.replace(params=new_position)
 
         def explore_step(current):
@@ -203,11 +207,21 @@ def inference_loop_batch(
         """Root Mean Squared Error."""
         return jnp.sqrt(jnp.mean((pred - truth) ** 2))
     
+    if n_devices > 1:
+        logpost = jax.pmap(unnorm_log_posterior)
+        apply_fn = jax.pmap(model.apply)
+        rmse = jax.pmap(_rmse)
+    else:
+        logpost = unnorm_log_posterior
+        apply_fn = model.apply
+        rmse = _rmse
+        
     def _log_metrics(step_count, state, batch):
         """Compute and log metrics."""
-        curr_logpost = jax.pmap(unnorm_log_posterior)(state.params, batch[0], batch[1])
-        preds = jax.pmap(model.apply)({'params': state.params}, batch[0])[..., 0]
-        curr_rmse = jax.pmap(_rmse)(preds, batch[1])
+        X, y = batch
+        curr_logpost = logpost(state.params, X, y)
+        preds = apply_fn({'params': state.params}, X)[..., 0]
+        curr_rmse = rmse(preds, y)
         file_path = saving_path.parent / "metrics.csv"
         if not file_path.exists():
             with open(file_path, "w") as f:
@@ -218,6 +232,7 @@ def inference_loop_batch(
             curr_rmse_i = curr_rmse[..., i]
             with open(file_path, "a") as f:
                 f.write(f"{step_count},{curr_logpost_i},{curr_rmse_i},{i}\n")
+
 
     with tqdm(total=n_samples, desc="Sampling") as progress_bar:
         step_count = 0
@@ -230,17 +245,26 @@ def inference_loop_batch(
                 batch = (batch['feature'], batch['label'])
                 # jax.debug.print("\nBatch shape: {batch_shape}\n", batch_shape=batch[0].shape)
                 # explore = _explore(step_count)
+
                 step_size = _scheduler_fn(step_count)
                 explore = _explore(step_count)
                 rng_key, _ = jax.random.split(rng_key)
-                
-                state = jax.pmap(one_step)(
-                    jax.random.split(rng_key, n_devices),
-                    state,
-                    batch,
-                    replicate(step_size),
-                    replicate(explore)
-                )
+                if n_devices > 1:
+                    state = jax.pmap(one_step)(
+                        jax.random.split(rng_key, n_devices),
+                        state,
+                        batch,
+                        replicate(step_size),
+                        replicate(explore)
+                    )
+                else:
+                    state = one_step(
+                        rng_key,
+                        state,
+                        batch,
+                        step_size,
+                        explore
+                    )
                 
                 # compute metrics
                 if saving_path and (step_count % 10 == 0):
@@ -268,7 +292,7 @@ def inference_loop_batch(
                 # Resetting the step count to 0 for the optimizer state is not a problem,
                 # since the schedule is cyclical anyway.
                 if step_count % cycle_length == 0:
-                    state = jax.pmap(_get_init_state, static_broadcasted_argnums=(0,2))(
+                    state = get_init_state(
                         model.apply,
                         state.params,
                         optimizer

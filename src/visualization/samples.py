@@ -311,7 +311,8 @@ def plot_lppd(lvals: jnp.ndarray, labels: jnp.ndarray, task: Task):
         combined_lppd, label='Combined', color='black', linestyle='--', linewidth=3
     )
     for i, p_lppd in enumerate(pointwise_lppd):
-        lppd = sandbox_metrics.running_lppd(p_lppd)
+        # lppd = sandbox_metrics.running_lppd(p_lppd)
+        lppd = pointwise_lppd[i].mean(-1)
         plt.plot(lppd, label=f'Chain {i + 1}')
     plt.xlabel('Number of samples')
     plt.ylabel('Log pointwise predictive density')
