@@ -440,7 +440,7 @@ def running_lppd(lppd_pointwise: jnp.ndarray):
         Running log predictive probability density of shape (n_chains, n_samples).
     """
     return (
-        jnp.log(running_mean(jnp.exp(lppd_pointwise).clip(1e-10), axis=-2))
+        jnp.log(running_mean(jnp.exp(lppd_pointwise), axis=-2))
         .mean(axis=-1)
         .mean(axis=0)
     )

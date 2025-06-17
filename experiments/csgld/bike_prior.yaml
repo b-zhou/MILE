@@ -1,5 +1,5 @@
 saving_dir: 'results/bike_adam_good/'
-experiment_name: 'bike_cyclical'
+experiment_name: 'bike_cyclical_sgd'
 data:
   path: 'data/bikesharing.data'
   source: 'local'
@@ -28,21 +28,22 @@ training:
   sampler:
     name: 'sgld'
     warmup_steps: 0
-    n_chains: 2
-    n_samples: 2500 # n_steps
+    n_chains: 4
+    n_samples: 24000 # n_steps
     batch_size: 512
-    step_size_init: 0.01 # step_size_explore
+    step_size_init: 2.0e-6 # step_size_explore
     n_thinning: 1
     keep_warmup: false
+    optimizer_name: 'sgd'
     prior_config:
       name: 'StandardNormal'
     scheduler_config:
       name: 'Cyclical'
       # exploration_ratio: 0.9
-      n_samples_per_cycle: 500
+      n_samples_per_cycle: 200
       parameters: {
-        n_cycles: 1,
-        # step_size_sampling: 1.0e-8
+        n_cycles: 4,
+        # step_size_sampling: 5.0e-8
       }
-rng: 4
+rng: 1446
 logging: true

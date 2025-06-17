@@ -600,7 +600,7 @@ class BDETrainer:
                     model=self.module,
                     unnorm_log_posterior=self.prob_model.log_unnormalized_posterior,
                     grad_estimator=grad_estimator,
-                    config=self.config.training,
+                    config=self.config_sampler,
                     rng_key=self.key,
                     init_params=params,
                     loader=self.loader,

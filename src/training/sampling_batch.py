@@ -124,9 +124,16 @@ def inference_loop_batch(
     total_samples = jnp.sum(~jnp.array(info['explore']))
     logger.info(f"Will produce {total_samples} samples.")
 
-    # optimizer = config.optimizer
-    # optimizer = optimizer(learning_rate=_scheduler_fn)
-    optimizer = optax.inject_hyperparams(optax.adam)(learning_rate=_scheduler_fn)
+    # TODO: use optimizer config
+    if config.optimizer_name == "adam":
+        logger.info("Using Adam optimizer.")
+        optimizer = optax.inject_hyperparams(optax.adam)(learning_rate=_scheduler_fn)
+    elif config.optimizer_name == "sgd":
+        logger.info("Using SGD optimizer.")
+        optimizer = optax.inject_hyperparams(optax.sgd)(learning_rate=_scheduler_fn)
+    else:
+        raise ValueError(f"Unsupported optimizer: {config.optimizer_name}")
+
     sampler = config.kernel(grad_estimator=grad_estimator)
 
     def _get_init_state(
@@ -198,16 +205,20 @@ def inference_loop_batch(
     
     def _log_metrics(step_count, state, batch):
         """Compute and log metrics."""
-        curr_logpost = jax.pmap(unnorm_log_posterior)(state.params, batch[0], batch[1]).mean()
+        curr_logpost = jax.pmap(unnorm_log_posterior)(state.params, batch[0], batch[1])
         preds = jax.pmap(model.apply)({'params': state.params}, batch[0])[..., 0]
-        curr_rmse = jax.pmap(_rmse)(preds, batch[1]).mean()
+        curr_rmse = jax.pmap(_rmse)(preds, batch[1])
         file_path = saving_path.parent / "metrics.csv"
         if not file_path.exists():
             with open(file_path, "w") as f:
-                f.write("step_count,log_posterior,rmse\n")
-        with open(file_path, "a") as f:
-            f.write(f"{step_count},{curr_logpost},{curr_rmse}\n")
-    
+                f.write("step_count,log_posterior,rmse,chain\n")
+        n_chains = curr_logpost.shape[-1]
+        for i in range(n_chains):
+            curr_logpost_i = curr_logpost[..., i]
+            curr_rmse_i = curr_rmse[..., i]
+            with open(file_path, "a") as f:
+                f.write(f"{step_count},{curr_logpost_i},{curr_rmse_i},{i}\n")
+
     with tqdm(total=n_samples, desc="Sampling") as progress_bar:
         step_count = 0
         while step_count < n_samples:
@@ -232,8 +243,8 @@ def inference_loop_batch(
                 )
                 
                 # compute metrics
-                # if saving_path and (step_count % 100 == 0):
-                #     _log_metrics(step_count, state, batch)
+                if saving_path and (step_count % 10 == 0):
+                    _log_metrics(step_count, state, batch)
 
                 if saving_path and (step_count % n_thinning == 0) \
                         and (explore is not True):

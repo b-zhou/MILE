@@ -253,6 +253,14 @@ class SamplerConfig(BaseConfig):
     #         'searchable': True,
     #     },
     # )
+    # TODO: use config
+    optimizer_name: str = field(
+        default='sgd',
+        metadata={
+            'description': 'Either "sgd" or "adam".',
+            'searchable': True,
+        },
+    )
 
     def __post_init__(self):
         """Post Initialization for the Sampler Configuration."""
