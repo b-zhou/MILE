@@ -237,7 +237,7 @@ def inference_loop_batch(
             for batch in loader.iter(
                 split="train",
                 batch_size=batch_size,
-                n_devices=1  # will be handled via replicate
+                n_devices=1
             ):
                 batch = (batch['feature'], batch['label'])
                 batch = replicate(batch)
@@ -255,7 +255,7 @@ def inference_loop_batch(
                 )
                 
                 # compute metrics
-                if saving_path and (step_count % 10 == 0):
+                if saving_path and (step_count % 100 == 0):
                     _log_metrics(step_count, state, batch)
 
                 if saving_path and (step_count % n_thinning == 0) \
