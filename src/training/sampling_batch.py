@@ -38,6 +38,8 @@ from src.dataset.base import BaseLoader
 
 from tqdm import tqdm
 
+import time
+
 logger = logging.getLogger(__name__)
 
 
@@ -68,6 +70,8 @@ def inference_loop_batch(
     Note:
         - Currently only supports the `sgld` sampler.
     """
+    start = time.perf_counter()
+
     info: JsonSerializableDict = {
         'scheduler_config': config.scheduler_config.to_dict(),
     }  # Put any information you might need later for analysis
@@ -148,10 +152,10 @@ def inference_loop_batch(
             tx=tx
         )
 
-    if n_devices > 1:
-        get_init_state = jax.pmap(_get_init_state, static_broadcasted_argnums=(0,2))
-    else:
-        get_init_state = _get_init_state
+    get_init_state = jax.pmap(_get_init_state, static_broadcasted_argnums=(0,2))
+    # force device axis
+    if n_devices == 1:
+        init_params = replicate(init_params)
     state = get_init_state(
         model.apply,
         init_params,
@@ -206,65 +210,49 @@ def inference_loop_batch(
     def _rmse(pred, truth):
         """Root Mean Squared Error."""
         return jnp.sqrt(jnp.mean((pred - truth) ** 2))
-    
-    if n_devices > 1:
-        logpost = jax.pmap(unnorm_log_posterior)
-        apply_fn = jax.pmap(model.apply)
-        rmse = jax.pmap(_rmse)
-    else:
-        logpost = unnorm_log_posterior
-        apply_fn = model.apply
-        rmse = _rmse
         
     def _log_metrics(step_count, state, batch):
-        """Compute and log metrics."""
+        """Compute and log metrics. Only works for multiple chains."""
+        curr_time = time.perf_counter()
+        elapsed_time = curr_time - start
         X, y = batch
-        curr_logpost = logpost(state.params, X, y)
-        preds = apply_fn({'params': state.params}, X)[..., 0]
-        curr_rmse = rmse(preds, y)
+        curr_logpost = jax.pmap(unnorm_log_posterior)(state.params, X, y)
+        preds = jax.pmap(model.apply)({'params': state.params}, X)[..., 0]
+        curr_rmse = jax.pmap(_rmse)(preds, y)
         file_path = saving_path.parent / "metrics.csv"
         if not file_path.exists():
             with open(file_path, "w") as f:
-                f.write("step_count,log_posterior,rmse,chain\n")
+                f.write("step_count,log_posterior,rmse,chain,runtime\n")
         n_chains = curr_logpost.shape[-1]
         for i in range(n_chains):
             curr_logpost_i = curr_logpost[..., i]
             curr_rmse_i = curr_rmse[..., i]
             with open(file_path, "a") as f:
-                f.write(f"{step_count},{curr_logpost_i},{curr_rmse_i},{i}\n")
+                f.write(f"{step_count},{curr_logpost_i},{curr_rmse_i},{i},{elapsed_time}\n")
 
-
+    cycle_time = []
     with tqdm(total=n_samples, desc="Sampling") as progress_bar:
         step_count = 0
         while step_count < n_samples:
             for batch in loader.iter(
                 split="train",
                 batch_size=batch_size,
-                n_devices=n_devices
+                n_devices=1  # will be handled via replicate
             ):
                 batch = (batch['feature'], batch['label'])
+                batch = replicate(batch)
                 # jax.debug.print("\nBatch shape: {batch_shape}\n", batch_shape=batch[0].shape)
                 # explore = _explore(step_count)
-
                 step_size = _scheduler_fn(step_count)
                 explore = _explore(step_count)
                 rng_key, _ = jax.random.split(rng_key)
-                if n_devices > 1:
-                    state = jax.pmap(one_step)(
-                        jax.random.split(rng_key, n_devices),
-                        state,
-                        batch,
-                        replicate(step_size),
-                        replicate(explore)
-                    )
-                else:
-                    state = one_step(
-                        rng_key,
-                        state,
-                        batch,
-                        step_size,
-                        explore
-                    )
+                state = jax.pmap(one_step)(
+                    jax.random.split(rng_key, n_devices),
+                    state,
+                    batch,
+                    replicate(step_size),
+                    replicate(explore)
+                )
                 
                 # compute metrics
                 if saving_path and (step_count % 10 == 0):
@@ -292,6 +280,7 @@ def inference_loop_batch(
                 # Resetting the step count to 0 for the optimizer state is not a problem,
                 # since the schedule is cyclical anyway.
                 if step_count % cycle_length == 0:
+                    cycle_time.append(time.perf_counter() - start)
                     state = get_init_state(
                         model.apply,
                         state.params,
@@ -302,6 +291,11 @@ def inference_loop_batch(
 
     jax.block_until_ready(state)
     logger.info(f"> {config.name.value} Sampling completed successfully.")
+
+    info.update({
+        'total_time': time.perf_counter() - start,
+        'cycle_time': cycle_time
+    })
 
     # Dump Information
     with open(saving_path / "info.pkl", "wb") as f:
