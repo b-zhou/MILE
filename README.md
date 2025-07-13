@@ -11,9 +11,11 @@
 
 ## Experiments
 
-- `thesis/experiments.ipynb` generates the config files, and runs the experiments.
+- `thesis/toy_example.ipynb` contains the toy experiment (sampling from Gaussian mixture).
+- `thesis/experiments.ipynb` generates the config files, and runs the other experiments.
 - `thesis/comparison.ipynb` contains the evaluation scripts (tables, figures, etc.).
 
+# BELOW IS ORIGINAL README
 # Microcanonical Langevin Ensembles (MILE)
 
 <p align="center">
