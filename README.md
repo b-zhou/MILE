@@ -3,8 +3,8 @@
 ## Implementation of (c)SGLD
 
 - Introduced a `Scheduler` class in `src/config/sampler.py`.
-- Added `get_grad_estimator` to `ProbabilisticModel` in `src/training/probabilistic.py`.
-- Extended `BDETrainer.start_sampling` in `src/training/trainer.py`.
+- Added `get_grad_estimator()` method to `ProbabilisticModel` in `src/training/probabilistic.py`.
+- Extended `BDETrainer.start_sampling` in `src/training/trainer.py` to allow for mini-batch sampling.
 - Added `src/training/sampling_batch.py` -- the workhorse function.
 - Added `src/inference_batch.ipynb` for automatic HTML report generation.
   This is just a simplification of `inference.ipynb`.
