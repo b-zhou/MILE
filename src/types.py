@@ -29,51 +29,6 @@ class State(NamedTuple):
 
     position: ParamTree
 
-# cSGLD stuff
-class SamplerState(NamedTuple):
-    """Sampler state for cSGLD.
-
-    Notes
-    -----
-    - TODO
-    """
-
-    position: ParamTree
-    opt_state: optax.OptState
-
-class ScheduleState(NamedTuple):
-    """Scheduler state for cSGLD.
-
-    Notes
-    -----
-    - TODO
-    """
-
-    step_size: float | jax.Array
-    explore: bool | jax.Array = False
-
-class Scheduler(Protocol):
-    """Protocol for Scheduler function.
-
-    Signature:
-    ---------
-    `(step_count) -> ScheduleState
-
-    Notes
-    -----
-    - We define some protocols to bring some structure in developing new
-        samplers and gradient estimators.
-    """
-
-    def __call__(
-        self, step_count: int
-    ) -> ScheduleState:
-        """Scheduler function for warmup."""
-        ...
-
-# PosteriorFunction is used in full-batch sampling it only requires position.
-
-
 class PosteriorFunction(Protocol):
     """Protocol for Posterior Function used in full-batch sampling.
 

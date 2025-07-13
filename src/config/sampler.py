@@ -6,7 +6,6 @@ from typing import Any
 from src.config.base import BaseConfig, BaseStrEnum
 from src.config.warmstart import OptimizerConfig
 from src.training.priors import PriorDist
-from src.training.schedulers import Scheduler
 
 
 class Sampler(BaseStrEnum):
@@ -97,6 +96,10 @@ class PriorConfig(BaseConfig):
         return self.name.get_prior(**self.parameters)
 
 
+class Scheduler(BaseStrEnum):
+    CONSTANT = 'Constant'
+    CYCLICAL = 'Cyclical'
+
 @dataclass(frozen=True)
 class SchedulerConfig(BaseConfig):
     """Scheduler Configuration for the step size."""
@@ -132,17 +135,6 @@ class SchedulerConfig(BaseConfig):
             'searchable': True,
         },
     )
-
-    def get_scheduler(self, n_steps, step_size_init, **kwargs):
-        """Get the scheduler function."""
-        return self.name.get_scheduler(
-            n_steps=n_steps,
-            step_size_init=step_size_init,
-            n_samples_per_cycle=self.n_samples_per_cycle,
-            exploration_ratio=self.exploration_ratio,
-            **kwargs
-        )
-
 
 @dataclass(frozen=True)
 class SamplerConfig(BaseConfig):
@@ -246,6 +238,8 @@ class SamplerConfig(BaseConfig):
             'searchable': True,
         },
     )
+    # Letting the user configure the optimizer for cSGLD would be a good idea,
+    # but not yet implemented.
     # optimizer_config: OptimizerConfig = field(
     #     default_factory=OptimizerConfig,
     #     metadata={
@@ -253,7 +247,6 @@ class SamplerConfig(BaseConfig):
     #         'searchable': True,
     #     },
     # )
-    # TODO: use config
     optimizer_name: str = field(
         default='sgd',
         metadata={
@@ -270,30 +263,6 @@ class SamplerConfig(BaseConfig):
     def prior(self):
         """Get the prior."""
         return self.prior_config.get_prior()
-    
-    @property
-    def scheduler(self):
-        """Get the scheduler function."""
-        return self.scheduler_config.get_scheduler(
-            n_steps=self.n_samples,
-            step_size_init=self.step_size_init,
-            **self.scheduler_config.parameters
-        )
-    
-    # @property
-    # def optimizer(self):
-    #     """Get the optimizer for cSGLD exploration."""
-    #     try:
-    #         import optax  # type: ignore
-    #     except ModuleNotFoundError:
-    #         raise ModuleNotFoundError(
-    #             'For Warmstart Training, optimizers are required: '
-    #             'Please install "optax" module'
-    #         )
-    #     parameters = self.optimizer_config.parameters
-    #     parameters.update({'learning_rate': 1.0})  # will be overwritten by scheduler anyway
-    #     op = getattr(optax, self.optimizer_config.name.value)(**parameters)
-    #     return op
 
     @property
     def kernel(self):

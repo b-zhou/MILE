@@ -140,24 +140,16 @@ class ProbabilisticModel:
             + self.log_likelihood(position, x, y, **kwargs) * self.n_batches
         )
 
-    def get_grad_estimator(self, data_size: int) -> Callable:
-        """Get gradient estimator for the model.
+    def get_grad_estimator(self) -> Callable:
+        """Get gradient estimator for the model. Will be used for SGLD sampling.
 
         Returns:
         --------
         Callable
             Gradient estimator function.
+            Note `batch` is a tuple. This is required by blackjax.sgld.
         """
-
-        # def loglikelihood_fn(params: ParamTree, batch: Tuple[jnp.ndarray, jnp.ndarray]):
-        #     """Log likelihood function for a batch of data."""
-        #     x, y = batch
-        #     return self.log_likelihood(params, x, y)
-
-        # return grad_estimator(self.log_prior, loglikelihood_fn, data_size)
-
         def _logpost(params, batch):
-            """Log posterior function for a batch of data."""
             x, y = batch
             return self.log_unnormalized_posterior(params, x, y)
         return jax.grad(_logpost)

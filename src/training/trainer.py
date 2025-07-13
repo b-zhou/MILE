@@ -564,8 +564,7 @@ class BDETrainer:
             chains = []  # Warmstart disabled: we desire to start from random ParamTree.
 
         if self.prob_model.minibatch:
-            n_train = self.loader.train_x.shape[0]
-            grad_estimator = self.prob_model.get_grad_estimator(n_train)
+            grad_estimator = self.prob_model.get_grad_estimator()
 
         for step in self.train_plan:
             logger.info(f'\t| Starting Sampling for chains {step}')
@@ -598,7 +597,6 @@ class BDETrainer:
             else:  # Mini-Batch Sampling
                 inference_loop_batch(
                     model=self.module,
-                    unnorm_log_posterior=self.prob_model.log_unnormalized_posterior,
                     grad_estimator=grad_estimator,
                     config=self.config_sampler,
                     rng_key=self.key,
@@ -606,7 +604,6 @@ class BDETrainer:
                     loader=self.loader,
                     step_ids=step,
                     saving_path=self.exp_dir / self.config_sampler._dir_name,
-                    saving_path_warmup=self._sampling_warmup_dir,
                 )
 
 
