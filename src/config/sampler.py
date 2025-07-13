@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from src.config.base import BaseConfig, BaseStrEnum
+from src.config.warmstart import OptimizerConfig
 from src.training.priors import PriorDist
 
 
@@ -25,6 +26,7 @@ class Sampler(BaseStrEnum):
     NUTS = 'nuts'
     MCLMC = 'mclmc'
     HMC = 'hmc'
+    SGLD = 'sgld'
 
     def get_kernel(self):
         """Get sampling kernel."""
@@ -93,6 +95,46 @@ class PriorConfig(BaseConfig):
         """
         return self.name.get_prior(**self.parameters)
 
+
+class Scheduler(BaseStrEnum):
+    CONSTANT = 'constant'
+    COSINE = 'cosine'
+
+@dataclass(frozen=True)
+class SchedulerConfig(BaseConfig):
+    """Scheduler Configuration for the step size."""
+
+    name: Scheduler = field(
+        default=Scheduler.CONSTANT,
+        metadata={
+            'description': 'Scheduler to use for the step size.',
+            'searchable': True,
+        },
+    )
+    n_samples_per_cycle: int | None = field(
+        default=None,
+        metadata={
+            'description': (
+                'Number of samples per cycle for cyclical schedulers. '
+                'If not None, the scheduler will use this value to determine the exploration ratio.'
+            ),
+            'searchable': True,
+        },
+    )
+    exploration_ratio: float | None = field(
+        default=0.0,
+        metadata={
+            'description': 'Exploration ratio for the scheduler.',
+            'searchable': True,
+        },
+    )
+    parameters: dict[str, Any] = field(
+        default_factory=dict,
+        metadata={
+            'description': 'Parameters for the scheduler.',
+            'searchable': True,
+        },
+    )
 
 @dataclass(frozen=True)
 class SamplerConfig(BaseConfig):
@@ -180,6 +222,37 @@ class SamplerConfig(BaseConfig):
     prior_config: PriorConfig = field(
         default_factory=PriorConfig,
         metadata={'description': 'Prior configuration for the model.'},
+    )
+    # cSGLD stuff
+    scheduler_config: SchedulerConfig = field(
+        default_factory=SchedulerConfig,
+        metadata={
+            'description': 'Scheduler to use for the step size.',
+            'searchable': True,
+        },
+    )
+    batch_size: int = field(
+        default=128,
+        metadata={
+            'description': 'Batch size for (c)SGLD sampling.',
+            'searchable': True,
+        },
+    )
+    # Letting the user configure the optimizer for cSGLD would be a good idea,
+    # but not yet implemented.
+    # optimizer_config: OptimizerConfig = field(
+    #     default_factory=OptimizerConfig,
+    #     metadata={
+    #         'description': 'Optimizer configuration for (c)SGLD sampling.',
+    #         'searchable': True,
+    #     },
+    # )
+    optimizer_name: str = field(
+        default='sgd',
+        metadata={
+            'description': 'Either "sgd" or "adam".',
+            'searchable': True,
+        },
     )
 
     def __post_init__(self):

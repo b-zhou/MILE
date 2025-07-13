@@ -1,3 +1,19 @@
+# RELATED TO THESIS
+
+## Implementation of (c)SGLD
+
+- Introduced a `Scheduler` class in `src/config/sampler.py`.
+- Added `get_grad_estimator` to `ProbabilisticModel` in `src/training/probabilistic.py`.
+- Extended `BDETrainer.start_sampling` in `src/training/trainer.py`.
+- Added `src/training/sampling_batch.py` -- the workhorse function.
+- Added `src/inference_batch.ipynb` for automatic HTML report generation.
+  This is just a simplification of `inference.ipynb`.
+
+## Experiments
+
+- `thesis/experiments.ipynb` generates the config files, and runs the experiments.
+- `thesis/comparison.ipynb` contains the evaluation scripts (tables, figures, etc.).
+
 # Microcanonical Langevin Ensembles (MILE)
 
 <p align="center">

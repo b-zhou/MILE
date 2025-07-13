@@ -63,7 +63,8 @@ def inference_loop(
     info = {}  # Put any information you might need later for analysis
     n_devices = len(step_ids)
     rng_key, warmup_key, sample_key = jax.random.split(rng_key, 3)
-    assert config.warmup_steps > 0, 'Number of warmup steps must be greater than 0.'
+    if config.name != Sampler.SGLD:
+        assert config.warmup_steps > 0, 'Number of warmup steps must be greater than 0.'
 
     # Warmup
     logger.info('> Starting Warmup sampling...')

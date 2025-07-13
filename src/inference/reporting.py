@@ -59,7 +59,10 @@ def export_to_html(nb: nbformat.NotebookNode, path: str | Path):
 def generate_html_report(config: Config):
     """Generate a HTML report from a Jupyter Notebook for given experiment config."""
     os.environ['SANDBOX_EXPERIMENT_DIR'] = config.experiment_dir.__str__()
-    nb_path = Path(__file__).parent / 'inference.ipynb'
+    if config.training.sampler.name == 'sgld':
+        nb_path = Path(__file__).parent / 'inference_batch.ipynb'
+    else:
+        nb_path = Path(__file__).parent / 'inference.ipynb'
     with open(nb_path) as f:
         nb = nbformat.read(f, as_version=4)
     logger.info('> Executing notebook...')

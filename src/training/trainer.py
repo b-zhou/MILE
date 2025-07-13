@@ -14,6 +14,7 @@ import src.inference.metrics as sandbox_metrics
 import src.training.utils as train_utils
 from src.config.core import Config
 from src.config.data import DatasetType, Task
+from src.config.sampler import Sampler
 from src.dataset import (
     ImageLoader,
     TabularLoader,
@@ -28,6 +29,7 @@ from src.inference.metrics import (
 from src.inference.reporting import generate_html_report
 from src.training.probabilistic import ProbabilisticModel
 from src.training.sampling import inference_loop
+from src.training.sampling_batch import inference_loop_batch
 from src.types import ParamTree
 from src.utils import measure_time, pretty_string_dict
 
@@ -111,11 +113,16 @@ class BDETrainer:
 
         # Setup Probabilistic Model
         logger.info('> Setting up Probabilistic Model...')
+        if config.training.sampler.name == Sampler.SGLD:
+            batch_size = self.config.training.sampler.batch_size
+            n_batches = len(self.loader.data_train) // batch_size
+        else:
+            n_batches = 1
         self.prob_model = ProbabilisticModel(
             module=self.module,
             params=self.init_module_params(n_device=1),
             prior=config.training.prior,
-            n_batches=self.n_batches,
+            n_batches=n_batches,
             task=config.data.task,
         )
 
@@ -160,6 +167,10 @@ class BDETrainer:
                     'Sampling will start from randomly initialized parameters.'
                 )
             )
+            # save the param tree
+            _, tree = jax.tree.flatten(self.init_module_params(n_device=self.n_devices))
+            train_utils.save_tree(self.exp_dir, tree)
+
         # Sampling Phase
         # breakpoint() # comes in handy for pretraining of e.g. embeddings
         logger.info('> Starting Sampling...')
@@ -292,7 +303,7 @@ class BDETrainer:
     @property
     def n_batches(self):
         """Return the number of batches."""
-        return 1
+        return (len(self.loader.data_train) // self.batch_size) or 1
 
     @property
     def optimizer(self):
@@ -552,6 +563,9 @@ class BDETrainer:
         else:
             chains = []  # Warmstart disabled: we desire to start from random ParamTree.
 
+        if self.prob_model.minibatch:
+            grad_estimator = self.prob_model.get_grad_estimator()
+
         for step in self.train_plan:
             logger.info(f'\t| Starting Sampling for chains {step}')
             if chains:  # Warmstart enabled
@@ -581,7 +595,16 @@ class BDETrainer:
                 )
 
             else:  # Mini-Batch Sampling
-                raise NotImplementedError('Mini-Batch Sampling not yet implemented.')
+                inference_loop_batch(
+                    model=self.module,
+                    grad_estimator=grad_estimator,
+                    config=self.config_sampler,
+                    rng_key=self.key,
+                    init_params=params,
+                    loader=self.loader,
+                    step_ids=step,
+                    saving_path=self.exp_dir / self.config_sampler._dir_name,
+                )
 
 
 def single_step_class(

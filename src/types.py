@@ -10,6 +10,7 @@ from typing import (
 import jax
 import jax.numpy as jnp
 from blackjax.base import SamplingAlgorithm
+import optax
 
 ParamTree: typing.TypeAlias = dict[str, typing.Union[jax.Array, 'ParamTree']]
 FileTree: typing.TypeAlias = dict[str, typing.Union[Path, 'FileTree']]
@@ -27,10 +28,6 @@ class State(NamedTuple):
     """
 
     position: ParamTree
-
-
-# PosteriorFunction is used in full-batch sampling it only requires position.
-
 
 class PosteriorFunction(Protocol):
     """Protocol for Posterior Function used in full-batch sampling.
@@ -55,16 +52,18 @@ class GradEstimator(Protocol):
 
     Signature:
     ---------
-    `(position: ParamTree, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray`
+    `(position: ParamTree, batch: Tuple[jnp.ndarray, jnp.ndarray]) -> jnp.ndarray`
 
     Notes
     -----
     - We define some protocols to bring some structure in developing new
         samplers and gradient estimators.
+    - The `batch` is a tuple of (inputs, targets) for the mini-batch sampling.
+      (This protocol is used by `blackjax.sgmcmc.gradients.grad_estimator`.)
     """
 
     def __call__(
-        self, position: ParamTree, x: jnp.ndarray, y: jnp.ndarray
+        self, position: ParamTree, batch: typing.Tuple[jnp.ndarray, jnp.ndarray]
     ) -> jnp.ndarray:
         """Gradient Estimator function for mini-batch sampling."""
         ...

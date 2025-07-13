@@ -11,6 +11,9 @@ from src.config.data import Task
 from src.training.priors import Prior
 from src.types import ParamTree
 
+from blackjax.sgmcmc import grad_estimator
+from typing import Tuple, Callable
+
 logger = logging.getLogger(__name__)
 
 
@@ -136,3 +139,17 @@ class ProbabilisticModel:
             self.log_prior(position)
             + self.log_likelihood(position, x, y, **kwargs) * self.n_batches
         )
+
+    def get_grad_estimator(self) -> Callable:
+        """Get gradient estimator for the model. Will be used for SGLD sampling.
+
+        Returns:
+        --------
+        Callable
+            Gradient estimator function.
+            Note `batch` is a tuple. This is required by blackjax.sgld.
+        """
+        def _logpost(params, batch):
+            x, y = batch
+            return self.log_unnormalized_posterior(params, x, y)
+        return jax.grad(_logpost)
