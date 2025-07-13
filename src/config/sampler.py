@@ -97,8 +97,8 @@ class PriorConfig(BaseConfig):
 
 
 class Scheduler(BaseStrEnum):
-    CONSTANT = 'Constant'
-    CYCLICAL = 'Cyclical'
+    CONSTANT = 'constant'
+    COSINE = 'cosine'
 
 @dataclass(frozen=True)
 class SchedulerConfig(BaseConfig):

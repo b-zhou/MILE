@@ -112,7 +112,7 @@ def inference_loop_batch(
                 lambda x: step_size_sampling,
                 1  # dummy operand
             )
-    elif schedule_config.name == Scheduler.CYCLICAL:
+    elif schedule_config.name == Scheduler.COSINE:
         # https://blackjax-devs.github.io/sampling-book/algorithms/cyclical_sgld.html#id2
         @jax.jit
         def _scheduler_fn(step_count: int) -> float:
